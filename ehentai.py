@@ -39,7 +39,7 @@ def FindHitomiLa(html_text):
 
 
 def FindTitle(html_text):
-    """Filnds the title of the book from html"""
+    """Finds the title of the book from html"""
     soup = BeautifulSoup(html_text, 'html.parser')
     title_elems = soup.find_all('h2', class_='title_jp')
     if not title_elems:
