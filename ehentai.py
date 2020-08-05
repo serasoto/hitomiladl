@@ -14,6 +14,8 @@ import re
 import json
 import time
 import http
+from rich.console import Console
+from rich.table import Column, Table
 
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) '
       'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -346,6 +348,27 @@ def _ZipImageFiles(image_dir, dest):
     logging.info('Wrote archive to ' + dest)
 
 
+def _PrintFailures(not_found, failed):
+    console = Console()
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Fail Status", style="dim", width=12)
+    table.add_column("URL")
+
+    for nf in not_found:
+        table.add_row(
+            'Not Found', nf
+        )
+    
+    for f in failed:
+        table.add_row(
+            'Failed to find book URL', f
+        )
+
+    console.print(table)
+    pass
+
+
 def DownloadFromHitomila(urls, output_dir):
     """Downloads assets and put them in output directory.
 
@@ -377,7 +400,7 @@ def DownloadFromHitomila(urls, output_dir):
             logging.info("%s already exists." % book_title)
             continue
 
-        # Check whether it the page is accessible. Especially bad when 404.
+        # Check whether the page is accessible. Especially bad when 404.
         try:
             req = urllib2.Request(ehentai.hitomila())
             response = urllib2.urlopen(req)
@@ -405,11 +428,7 @@ def DownloadFromHitomila(urls, output_dir):
             _ZipImageFiles(images_dir, zip_file_path)
             print('Saved to %s' % zip_file_path)
 
-    for f in not_found:
-        logging.error('404 Not found %s' % f)
-
-    for f in failed:
-        logging.warning("Failed to download: %s" % f)
+    _PrintFailures(not_found, failed)
 
 
 def _GetUrlsFromFile(path):
