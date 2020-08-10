@@ -16,6 +16,8 @@ import time
 import http
 from rich.console import Console
 from rich.table import Column, Table
+from rich import print
+from rich.progress import Progress
 
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) '
       'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -169,10 +171,8 @@ def _DownloadImageToFile(url, referer_url, file):
         time.sleep(2)
         try:
             opener = urllib2.build_opener()
-            opener.addheaders = [
-                ('User-Agent', UA),
-                ('Referer', referer_url),
-                {'Sec-Fetch-Mode', 'no-cors'}]
+            opener.addheaders = [('User-Agent', UA), ('Referer', referer_url),
+                                 {'Sec-Fetch-Mode', 'no-cors'}]
             response = opener.open(url)
 
             length = int(response.headers['Content-Length'])
@@ -189,7 +189,8 @@ def _DownloadImageToFile(url, referer_url, file):
                 return
             else:
                 logging.error('Download size mismatch ' + 'file size:' +
-                              str(os.stat(file).st_size) + '  content-length:' + str(length))
+                              str(os.stat(file).st_size) +
+                              '  content-length:' + str(length))
                 continue
 
         except urllib2.HTTPError as e:
@@ -207,8 +208,9 @@ def _DownloadImageToFile(url, referer_url, file):
             ex = e
 
         except IOError as e:
-            logging.error('IOError:errno: [{0}] msg: [{1}]'.format(
-                e.errno, e.strerror), url)
+            logging.error(
+                'IOError:errno: [{0}] msg: [{1}]'.format(e.errno, e.strerror),
+                url)
             raise e
 
     raise ex
@@ -272,8 +274,8 @@ class HitomiPage:
                 # domain.
                 for image_info in images_info_array['files']:
                     image_hash = image_info['hash']
-                    path = _HashAndNameToImagePath(
-                        image_hash, image_info['name'])
+                    path = _HashAndNameToImagePath(image_hash,
+                                                   image_info['name'])
                     subdomain = _CalculcateSubdomainFromHash(image_hash)
                     domain = subdomain + '.hitomi.la'
                     imgurl = 'https://{}/{}'.format(domain, path)
@@ -290,8 +292,8 @@ class HitomiPage:
                 ex = e
 
             except urllib2.URLError as e:
-                logging.error(
-                    'URLError: reason: [{0}]'.format(e.reason), js_url)
+                logging.error('URLError: reason: [{0}]'.format(e.reason),
+                              js_url)
                 ex = e
         raise ex
 
@@ -313,12 +315,22 @@ class HitomiPage:
         logging.debug('image list: ' + str(list))
         referer_url = 'https://hitomi.la/reader/' + self.__id + '.html'
 
-        for image_info in list:
-            image_file_name = re.sub(r'^.+/([^/]+)$', r'\1', image_info.name)
-            local_file = os.path.join(path, image_file_name)
-            url = image_info.url
-            print('Download url=' + url + '  To file=' + local_file)
-            _DownloadImageToFile(url, referer_url, local_file)
+        with Progress() as progress:
+            total_images = len(list)
+            task = progress.add_task('Downloading', total=total_images)
+            for image_info in list:
+                image_file_name = re.sub(r'^.+/([^/]+)$', r'\1',
+                                         image_info.name)
+                local_file = os.path.join(path, image_file_name)
+                url = image_info.url
+                logging.debug('Download url=' + url + '  To file=' +
+                              local_file)
+                progress.update(
+                    task,
+                    advance=0,
+                    description='Downloading {}'.format(image_file_name))
+                _DownloadImageToFile(url, referer_url, local_file)
+                progress.update(task, advance=1)
 
 
 class EhentaiDbPage:
@@ -345,7 +357,7 @@ def _ZipImageFiles(image_dir, dest):
         for f in image_files:
             # The second arg is the archive name, so just use the files' name.
             dest_zip.write(f, os.path.basename(f))
-    logging.info('Wrote archive to ' + dest)
+    print('Wrote archive to ' + dest)
 
 
 def _PrintFailures(not_found, failed):
@@ -356,14 +368,10 @@ def _PrintFailures(not_found, failed):
     table.add_column("URL")
 
     for nf in not_found:
-        table.add_row(
-            'Not Found', nf
-        )
-    
+        table.add_row('Not Found', nf)
+
     for f in failed:
-        table.add_row(
-            'Failed to find book URL', f
-        )
+        table.add_row('Failed to find book URL', f)
 
     console.print(table)
     pass
@@ -379,7 +387,7 @@ def DownloadFromHitomila(urls, output_dir):
     failed = []
     not_found = []
     for url in urls:
-        logging.info('Start %s' % url)
+        print('Start %s' % url)
         ehentai = EhentaiDbPage(url)
 
         if not ehentai.hitomila():
@@ -393,11 +401,11 @@ def DownloadFromHitomila(urls, output_dir):
             book_title = book_title.replace('/', '_')
             logging.info('Found / in book title, renamed to %s' % book_title)
 
-        logging.info('Fetching: %s' % book_title)
+        print('Fetching: %s' % book_title)
 
         zip_file_path = os.path.join(output_dir, book_title + '.zip')
         if os.path.exists(zip_file_path):
-            logging.info("%s already exists." % book_title)
+            print("%s already exists. Skipping." % book_title)
             continue
 
         # Check whether the page is accessible. Especially bad when 404.
@@ -437,7 +445,6 @@ def _GetUrlsFromFile(path):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
 
     parser = argparse.ArgumentParser()
     parser.add_argument('urls',
@@ -451,8 +458,17 @@ if __name__ == '__main__':
                         default='.',
                         help='Output directory.')
     parser.add_argument('-f', '--file', type=str, help='File with URLs.')
+    parser.add_argument('-v',
+                        '--verbose',
+                        action='store_true',
+                        default=False,
+                        help='Enables verbose logging.')
 
     args = parser.parse_args()
+
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+
     urls = []
 
     if args.file:
@@ -462,7 +478,6 @@ if __name__ == '__main__':
     if args.urls:
         urls.extend(args.urls)
 
-    logging.info(urls)
     # Print all the urls to stdout so that it's easier to copy past
     # if needed.
     for url in urls:
