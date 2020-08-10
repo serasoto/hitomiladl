@@ -94,14 +94,18 @@ def _HashAndNameToImagePath(hash, name):
 def _CalculcateSubdomainFromHash(hash):
     """Calculates the 
 
-    Following is the original logic from javascript
-    function subdomain_from_galleryid(g) {
+    Following is the original logic from javascript in common.js.
+    Extra comments are added as notes.
+    function subdomain_from_galleryid(g, number_of_frontends) {
         if (adapose) {
-            return '0';
+                return '0';
         }
-
+        
         var o = g % number_of_frontends;
 
+        // 97 is 'a' from ascii table.
+        // Hence this entire function is
+        // AsciiCharOf(97 + (gallery_id % num_front_end))
         return String.fromCharCode(97 + o);
     }
 
@@ -110,24 +114,31 @@ def _CalculcateSubdomainFromHash(hash):
         if (base) {
                 retval = base;
         }
-
+        
+        var number_of_frontends = 3;
         var b = 16;
+        
         var r = /\/[0-9a-f]\/([0-9a-f]{2})\//;
         var m = r.exec(url);
         if (!m) {
                 return retval;
         }
-
+        
+        // This is the "gallery_id" variable below.
         var g = parseInt(m[1], b);
         if (!isNaN(g)) {
-                if (g < 0x20) {
+                if (g < 0x30) {
+                        number_of_frontends = 2;
+                }
+                if (g < 0x09) {
                         g = 1;
                 }
-                retval = subdomain_from_galleryid(g) + retval;
+                retval = subdomain_from_galleryid(g, number_of_frontends) + retval;
         }
-
+        
         return retval;
     }
+
     Note that AFAICT base will not be set.
     The regex is basically looking for the third to last and second to last
     character of the hash.
@@ -138,20 +149,23 @@ def _CalculcateSubdomainFromHash(hash):
     7c
 
     |adapose| is always false.
-    |number_of_frontends| is 3.
 
     Since the hash is a hex string, there is no reason for g to be NaN.
     This function immitates the javascript function with the assumptions in the
     description above.
     """
-    _NUM_FRONTENDS = 3
+    number_of_frontends = 3
     _BASE = 16
 
     # Note that this isn't the "usual" gallery ID.
     gallery_id = int(hash[-3:-1], _BASE)
-    if gallery_id < 0x20:
+    if gallery_id < 0x30:
+        number_of_frontends = 2
+    if gallery_id < 0x09:
         gallery_id = 1
-    modded_gallery_id = gallery_id % _NUM_FRONTENDS
+
+    # This part should behave the same way as subdomain_from_galleryid() function.
+    modded_gallery_id = gallery_id % number_of_frontends
     return chr(97 + modded_gallery_id) + 'a'
 
 
