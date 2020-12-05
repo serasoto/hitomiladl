@@ -24,4 +24,4 @@ jobs:
         pipenv install --dev
     - name: Run tests
       run: |
-        pipenv run python ./ehentai_test.py -v
+        pipenv run python -m unittest hitomila_test
