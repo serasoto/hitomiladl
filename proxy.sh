@@ -7,4 +7,4 @@ PROJECT_DIR="${PWD}"
 cd "$1"
 
 shift
-python "${PROJECT_DIR}/ehentai.py" "$@"
+python "${PROJECT_DIR}/hitomila.py" "$@"
