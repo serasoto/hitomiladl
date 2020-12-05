@@ -76,7 +76,7 @@ def _HashAndNameToImagePath(hash, name):
 
     This takes the last 3 characters of the hash string and creates a path by
     putting the last character followed by slash then the third to last and
-    secont to last followed by slash. Then appends the hash.
+    second to last followed by slash. Then appends the hash.
     e.g.
     9a9c4953baf0cc84486a546e24da2edc61ba2864852bf11da6a07e4f63d037cb
     is changed to
@@ -154,6 +154,10 @@ def _CalculcateSubdomainFromHash(hash):
     This function immitates the javascript function with the assumptions in the
     description above.
     """
+
+    # This maps to the "retval" variable in subdomain_from_url() function.
+    retval = 'b'
+
     number_of_frontends = 3
     _BASE = 16
 
@@ -166,7 +170,7 @@ def _CalculcateSubdomainFromHash(hash):
 
     # This part should behave the same way as subdomain_from_galleryid() function.
     modded_gallery_id = gallery_id % number_of_frontends
-    return chr(97 + modded_gallery_id) + 'a'
+    return chr(97 + modded_gallery_id) + retval
 
 
 def _DownloadImageToFile(url, referer_url, file):
@@ -239,12 +243,39 @@ class ImageInfo(NamedTuple):
 
 class HitomiPage:
     def __init__(self, url):
+        self.url = url
         ptr = re.compile('^https?:\/\/.*[^0-9]([0-9]*).html.*$')
         m = ptr.search(url.rstrip('\n'))
         if m:
             self.__id = m.group(1)
 
         self.__img_list = []
+    
+    def GetTitle(self):
+        try:
+            req = urllib2.Request(self.url)
+            response = urllib2.urlopen(req)
+        except:
+            logging.error('Failed to get {}'.format(self.url))
+            return None
+        
+        html_text = response.read().decode('utf-8')
+        soup = BeautifulSoup(html_text, 'html.parser')
+        gallery_info = soup.find('div', class_='gallery')
+        if not gallery_info:
+            logging.error('Failed to find galery info for {}'.format(self.url))
+            return None
+        
+        h1 = gallery_info.find('h1')
+        if not h1:
+            return None
+
+        tag_with_title = h1.find('a')
+        if not tag_with_title:
+            return None
+        
+        return tag_with_title.contents[0]
+
 
     def GetImageInfo(self):
         """Gets the list of image's information.
@@ -286,6 +317,8 @@ class HitomiPage:
                 # Use the the last letter to see if it can be base 16 decoded
                 # (I don't see why it cannot be), and use it to calculate the
                 # domain.
+                # Look for subdomain_from_url in common.js on hitomi.la gallery
+                # page. 
                 for image_info in images_info_array['files']:
                     image_hash = image_info['hash']
                     path = _HashAndNameToImagePath(image_hash,
@@ -402,15 +435,9 @@ def DownloadFromHitomila(urls, output_dir):
     not_found = []
     for url in urls:
         print('Start %s' % url)
-        ehentai = EhentaiDbPage(url)
+        hitomi = HitomiPage(url)
 
-        if not ehentai.hitomila():
-            logging.warning('Failed to find Hitomila url for %s, skipping.' %
-                            url)
-            failed.append(url)
-            continue
-
-        book_title = ehentai.title()
+        book_title = hitomi.GetTitle()
         if '/' in book_title:
             book_title = book_title.replace('/', '_')
             logging.info('Found / in book title, renamed to %s' % book_title)
@@ -422,21 +449,7 @@ def DownloadFromHitomila(urls, output_dir):
             print("%s already exists. Skipping." % book_title)
             continue
 
-        # Check whether the page is accessible. Especially bad when 404.
-        try:
-            req = urllib2.Request(ehentai.hitomila())
-            response = urllib2.urlopen(req)
-            response.read()
-        except urllib.error.HTTPError as e:
-            logging.error('Failed to get page %s with code %d. Skipping.' %
-                          (url, e.code))
-            if e.code == 404:
-                not_found.append(url)
-            else:
-                failed.append(url)
-            continue
-
-        h = HitomiPage(ehentai.hitomila())
+        h = hitomi
         with tempfile.TemporaryDirectory() as images_dir:
             try:
                 h.DownloadImagesTo(images_dir)
