@@ -4,7 +4,6 @@ from typing import NamedTuple
 from bs4 import BeautifulSoup
 import urllib.request as urllib2
 import logging
-import shutil
 import argparse
 import os
 import zipfile
@@ -22,53 +21,6 @@ from rich.progress import Progress
 UA = ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_4) '
       'AppleWebKit/537.36 (KHTML, like Gecko) '
       'Chrome/73.0.3683.103 Safari/537.36')
-
-
-def FindHitomiLa(html_text):
-    """Finds the link to hitomi.la from html"""
-    soup = BeautifulSoup(html_text, 'html.parser')
-    found_elements = soup.find_all('a', text='hitomi.la')
-
-    num_found = len(found_elements)
-    if num_found == 0:
-        logging.error('Failed to find matching element')
-        return None
-
-    if num_found > 1:
-        logging.warning('Found %d elements that matched.' % len(num_found))
-    target_elem = found_elements[0]
-    url = target_elem['href']
-    logging.info('Found Hitomi.la url: ' + url)
-    return url
-
-
-def FindTitle(html_text):
-    """Finds the title of the book from html"""
-    soup = BeautifulSoup(html_text, 'html.parser')
-    title_elems = soup.find_all('h2', class_='title_jp')
-    if not title_elems:
-        # If there is no JP title, then there's only EN title which is actually
-        # in JP.
-        title_elems = soup.find_all('h2', class_='title_en')
-    target_elem = title_elems[0]
-    title = target_elem.contents[0]
-    logging.info('Found title: ' + title)
-    return title
-
-
-def _FetchPage(url):
-    try:
-        req = urllib2.Request(url)
-        response = urllib2.urlopen(req)
-        return response.read()
-    except urllib.error.URLError as e:
-        logging.error('Failed to get %s reason: %s\n' % (url, e.reason))
-        return ""
-
-
-def FindHitomiLaUrl(ehentai_db_url):
-    page_html = _FetchPage(ehentai_db_url)
-    return FindHitomiLa(page_html)
 
 
 def _HashAndNameToImagePath(hash, name):
@@ -380,19 +332,6 @@ class HitomiPage:
                 progress.update(task, advance=1)
 
 
-class EhentaiDbPage:
-    def __init__(self, url):
-        self.__page_html = _FetchPage(url)
-        self.__hitomila_url = FindHitomiLa(self.__page_html)
-        self.__title = FindTitle(self.__page_html)
-
-    def title(self):
-        return self.__title
-
-    def hitomila(self):
-        return self.__hitomila_url
-
-
 def _ZipImageFiles(image_dir, dest):
     assert os.path.exists(image_dir)
 
@@ -472,7 +411,6 @@ def _GetUrlsFromFile(path):
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser()
     parser.add_argument('urls',
                         metavar='URLs',
