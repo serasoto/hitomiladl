@@ -1,4 +1,4 @@
-# e-hentaidb Downloader
+# Hitomi.la Downloader
 
 Downloads items from hitomi.la.
 
