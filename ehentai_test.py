@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from unittest.main import main
-import urllib.request
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -34,7 +33,7 @@ class TestUrlopen(unittest.TestCase):
     def test_subdomain_calc(self):
         subdomain = ehentai._CalculcateSubdomainFromHash(
             'ea81fc2167036c9ab6f99c7fc9e02c7d12a29182461aa29db6644a5e7d92c1a4')
-        self.assertEqual(subdomain, 'aa')
+        self.assertEqual(subdomain, 'ab')
 
 
 if __name__ == "__main__":
